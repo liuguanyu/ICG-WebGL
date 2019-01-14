@@ -1,13 +1,29 @@
-import {initShaders, setupWebGL, pointsToBuffer} from 'GLHelper';
+import {createProgram, setupWebGL, pointsToBuffer} from 'GLHelper';
 import {vec2} from 'gl-matrix';
 
 import vertexShader from './vertex.glsl';
 import fragmentShader from './fragment.glsl';
 
 let gl;
-let points;
 
-const NumPoints = 5000;
+const points = [];
+const numTimesToSubdivide = 5;
+
+function divideTriangle(a, b, c, count = numTimesToSubdivide) {
+  if(count <= 0) {
+    points.push(a, b, c);
+  } else {
+    const ab = vec2.lerp(vec2.create(), a, b, 0.5);
+    const ac = vec2.lerp(vec2.create(), a, c, 0.5);
+    const bc = vec2.lerp(vec2.create(), b, c, 0.5);
+
+    --count;
+
+    divideTriangle(a, ab, ac, count);
+    divideTriangle(c, ac, bc, count);
+    divideTriangle(b, bc, ab, count);
+  }
+}
 
 function init() {
   const canvas = document.getElementById('gl-canvas');
@@ -24,32 +40,12 @@ function init() {
   // First, initialize the corners of our gasket with three points.
 
   const vertices = [
-    vec2.set(vec2.create(), -1, -1),
-    vec2.set(vec2.create(), 0, 1),
-    vec2.set(vec2.create(), 1, -1),
+    vec2.fromValues(-1, -1),
+    vec2.fromValues(0, 1),
+    vec2.fromValues(1, -1),
   ];
 
-  // Specify a starting point p for our iterations
-  // p must lie inside any set of three vertices
-
-  const u = vec2.add(vec2.create(), vertices[0], vertices[1]);
-  const v = vec2.add(vec2.create(), vertices[0], vertices[2]);
-  let p = vec2.scale(vec2.create(), vec2.add(vec2.create(), u, v), 0.25);
-
-  // And, add our initial point into our array of points
-
-  points = [p];
-
-  // Compute new points
-  // Each new point is located midway between
-  // last point and a randomly chosen vertex
-
-  for(let i = 0; points.length < NumPoints; ++i) {
-    const j = Math.floor(Math.random() * 3);
-    p = vec2.add(vec2.create(), points[i], vertices[j]);
-    vec2.scale(p, p, 0.5);
-    points.push(p);
-  }
+  divideTriangle(...vertices);
 
   //
   //  Configure WebGL
@@ -59,7 +55,7 @@ function init() {
 
   //  Load shaders and initialize attribute buffers
 
-  const program = initShaders(gl, vertexShader, fragmentShader);
+  const program = createProgram(gl, vertexShader, fragmentShader);
   gl.useProgram(program);
 
   // Load the data into the GPU
@@ -78,7 +74,7 @@ function init() {
 
 function render() {
   gl.clear(gl.COLOR_BUFFER_BIT);
-  gl.drawArrays(gl.POINTS, 0, points.length);
+  gl.drawArrays(gl.TRIANGLES, 0, points.length);
 }
 
 init();
